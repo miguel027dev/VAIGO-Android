@@ -77,7 +77,7 @@ class MainActivity : Activity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
-            geolocationEnabled = true
+            setGeolocationEnabled(true)
             loadsImagesAutomatically = true
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
