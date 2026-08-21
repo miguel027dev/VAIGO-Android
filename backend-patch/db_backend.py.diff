@@ -1,0 +1,36 @@
+--- /mnt/data/vaigo_v66_original/wesafe-main/db_backend.py	2026-08-21 19:14:10.000000000 +0000
++++ /mnt/data/vaigo_android_work/wesafe-main/db_backend.py	2026-08-21 19:39:01.442695465 +0000
+@@ -314,6 +314,17 @@
+     )
+     """,
+     """
++    CREATE TABLE IF NOT EXISTS mobile_auth_codes (
++        state_hash TEXT PRIMARY KEY,
++        exchange_hash TEXT UNIQUE,
++        code_challenge TEXT NOT NULL DEFAULT '',
++        user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
++        created_at TEXT NOT NULL,
++        expires_at TEXT NOT NULL,
++        used_at TEXT
++    )
++    """,
++    """
+     CREATE TABLE IF NOT EXISTS oauth_states (
+         state TEXT PRIMARY KEY,
+         redirect_uri TEXT NOT NULL,
+@@ -339,6 +350,7 @@
+     "CREATE INDEX IF NOT EXISTS idx_shared_routes_expiry ON shared_routes(expires_at)",
+     "CREATE INDEX IF NOT EXISTS idx_live_trips_token ON live_trips(token)",
+     "CREATE INDEX IF NOT EXISTS idx_live_trips_expiry ON live_trips(expires_at, active)",
++    "CREATE INDEX IF NOT EXISTS idx_mobile_auth_expiry ON mobile_auth_codes(expires_at, used_at)",
+     "CREATE INDEX IF NOT EXISTS idx_oauth_states_expiry ON oauth_states(expires_at)",
+     "CREATE INDEX IF NOT EXISTS idx_flow_samples_geo_time ON flow_samples(cell_lat, cell_lon, created_at)",
+     "CREATE INDEX IF NOT EXISTS idx_flow_samples_time ON flow_samples(created_at)",
+@@ -373,6 +385,7 @@
+     "ALTER TABLE users ADD COLUMN IF NOT EXISTS emergency_phone TEXT NOT NULL DEFAULT ''",
+     "ALTER TABLE users ADD COLUMN IF NOT EXISTS map_style TEXT NOT NULL DEFAULT 'spark'",
+     "ALTER TABLE oauth_states ADD COLUMN IF NOT EXISTS fingerprint TEXT NOT NULL DEFAULT ''",
++    "ALTER TABLE mobile_auth_codes ADD COLUMN IF NOT EXISTS code_challenge TEXT NOT NULL DEFAULT ''",
+ ]
+ 
+ 
