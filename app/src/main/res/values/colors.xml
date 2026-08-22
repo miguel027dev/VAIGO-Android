@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="vaigo_bg">#F7F7FB</color>
+    <color name="vaigo_primary">#5957E8</color>
+    <color name="vaigo_primary_dark">#4E50D8</color>
+    <color name="vaigo_mint">#BDF4E4</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#17171D</color>
+</resources>
