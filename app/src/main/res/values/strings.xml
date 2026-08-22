@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">VAIGO</string>
-    <string name="google_dialog_title">Entrar com Google</string>
-    <string name="google_dialog_message">Por segurança, o login com Google é concluído no navegador. Depois de entrar, você volta automaticamente para o VAIGO.</string>
-    <string name="google_dialog_continue">Continuar no site</string>
-    <string name="cancel">Cancelar</string>
+    <string name="loading_app">Preparando sua navegação…</string>
 </resources>

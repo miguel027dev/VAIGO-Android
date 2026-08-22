@@ -7,6 +7,9 @@
         <item name="android:statusBarColor">#F7F7FB</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
         <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowSplashScreenBackground">#F7F7FB</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_vaigo_logo</item>
+        <item name="android:windowSplashScreenAnimationDuration">160</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">#5957E8</item>
         <item name="android:windowNoTitle">true</item>

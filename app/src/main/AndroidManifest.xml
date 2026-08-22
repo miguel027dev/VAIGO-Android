@@ -9,6 +9,7 @@
 
     <application
         android:allowBackup="false"
+        android:hardwareAccelerated="true"
         android:usesCleartextTraffic="false"
         android:icon="@drawable/ic_vaigo_logo"
         android:label="VAIGO"
@@ -16,22 +17,17 @@
         android:theme="@style/Theme.Vaigo">
 
         <activity
-            android:name=".SplashActivity"
-            android:exported="true"
-            android:screenOrientation="unspecified"
-            android:theme="@style/Theme.Vaigo.Splash">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize|uiMode">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
 
             <!-- Retorno do navegador depois do login Google. -->
             <intent-filter>

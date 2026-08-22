@@ -8,11 +8,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.view.View
+import android.view.WindowInsets
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
 import android.webkit.JsResult
@@ -24,6 +26,8 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -39,13 +43,22 @@ class MainActivity : Activity() {
         private const val PREFS = "vaigo_native"
         private const val PENDING_AUTH_STATE = "pending_auth_state"
         private const val PENDING_AUTH_VERIFIER = "pending_auth_verifier"
+        private const val START_URL_PATH = "/mobile/entry"
+        private const val LOADER_FADE_MS = 180L
     }
 
+    private lateinit var root: FrameLayout
     private lateinit var webView: WebView
     private lateinit var loadingOverlay: FrameLayout
+    private lateinit var loadingProgress: ProgressBar
+    private lateinit var loadingLabel: TextView
+
     private var geoOrigin: String? = null
     private var geoCallback: GeolocationPermissions.Callback? = null
     private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private var firstContentShown = false
+    private var lastMainFrameUrl: String? = null
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private val baseUrl = BuildConfig.VAIGO_BASE_URL.trimEnd('/')
 
@@ -53,13 +66,40 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        root = findViewById(R.id.root)
         webView = findViewById(R.id.webView)
         loadingOverlay = findViewById(R.id.loadingOverlay)
+        loadingProgress = findViewById(R.id.loadingProgress)
+        loadingLabel = findViewById(R.id.loadingLabel)
 
+        configureSystemUi()
         configureWebView()
 
         if (!handleAuthDeepLink(intent)) {
-            webView.loadUrl("$baseUrl/mobile/entry")
+            loadStartPage()
+        }
+    }
+
+    private fun configureSystemUi() {
+        window.statusBarColor = Color.rgb(247, 247, 251)
+        window.navigationBarColor = Color.WHITE
+        window.decorView.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.isNavigationBarContrastEnforced = false
+        }
+
+        // Android 15 força edge-to-edge para apps target 35. Mantém os controles do site
+        // fora da barra de status/navegação sem adicionar dependência AndroidX.
+        if (Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener { view, insets ->
+                val safe = insets.getInsets(
+                    WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+                )
+                view.setPadding(0, safe.top, 0, safe.bottom)
+                insets
+            }
         }
     }
 
@@ -72,13 +112,22 @@ class MainActivity : Activity() {
             setAcceptThirdPartyCookies(webView, false)
         }
 
-        webView.setBackgroundColor(Color.rgb(247, 247, 251))
+        webView.apply {
+            setBackgroundColor(Color.rgb(247, 247, 251))
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            isFocusableInTouchMode = true
+        }
+
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
             setGeolocationEnabled(true)
             loadsImagesAutomatically = true
+            blockNetworkImage = false
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             allowFileAccess = false
@@ -86,8 +135,13 @@ class MainActivity : Activity() {
             builtInZoomControls = false
             displayZoomControls = false
             setSupportZoom(false)
+            setSupportMultipleWindows(false)
+            javaScriptCanOpenWindowsAutomatically = false
+            cacheMode = WebSettings.LOAD_DEFAULT
+            defaultTextEncodingName = "UTF-8"
+            textZoom = 100
             userAgentString = "$userAgentString VAIGO-Android/${BuildConfig.VERSION_NAME}"
-            if (android.os.Build.VERSION.SDK_INT >= 26) {
+            if (Build.VERSION.SDK_INT >= 26) {
                 safeBrowsingEnabled = true
             }
         }
@@ -104,8 +158,20 @@ class MainActivity : Activity() {
                 return routeNavigation(uri)
             }
 
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                if (!url.isNullOrBlank()) lastMainFrameUrl = url
+                if (!firstContentShown) showLoading("Abrindo o VAIGO…")
+                super.onPageStarted(view, url, favicon)
+            }
+
+            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                revealWebContent()
+                super.onPageCommitVisible(view, url)
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
-                loadingOverlay.visibility = View.GONE
+                view?.let(::applyNativePolish)
+                revealWebContent()
                 super.onPageFinished(view, url)
             }
 
@@ -115,14 +181,20 @@ class MainActivity : Activity() {
                 error: WebResourceError?
             ) {
                 if (request?.isForMainFrame == true) {
+                    loadingOverlay.animate().cancel()
                     loadingOverlay.visibility = View.GONE
-                    showOfflinePage()
+                    showOfflinePage(lastMainFrameUrl ?: "$baseUrl$START_URL_PATH")
                 }
                 super.onReceivedError(view, request, error)
             }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                loadingProgress.progress = newProgress.coerceIn(0, 100)
+                super.onProgressChanged(view, newProgress)
+            }
+
             override fun onGeolocationPermissionsShowPrompt(
                 origin: String?,
                 callback: GeolocationPermissions.Callback?
@@ -138,7 +210,10 @@ class MainActivity : Activity() {
                 geoOrigin = origin
                 geoCallback = callback
                 requestPermissions(
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ),
                     LOCATION_REQUEST
                 )
             }
@@ -151,11 +226,12 @@ class MainActivity : Activity() {
                 fileCallback?.onReceiveValue(null)
                 fileCallback = filePathCallback
                 return try {
-                    val intent = fileChooserParams?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
-                        type = "*/*"
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                    }
-                    startActivityForResult(intent, FILE_PICKER_REQUEST)
+                    val picker = fileChooserParams?.createIntent()
+                        ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                            type = "*/*"
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                        }
+                    startActivityForResult(picker, FILE_PICKER_REQUEST)
                     true
                 } catch (_: ActivityNotFoundException) {
                     fileCallback = null
@@ -163,7 +239,12 @@ class MainActivity : Activity() {
                 }
             }
 
-            override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
+            override fun onJsAlert(
+                view: WebView?,
+                url: String?,
+                message: String?,
+                result: JsResult?
+            ): Boolean {
                 AlertDialog.Builder(this@MainActivity)
                     .setMessage(message ?: "")
                     .setPositiveButton("OK") { _, _ -> result?.confirm() }
@@ -176,9 +257,74 @@ class MainActivity : Activity() {
         webView.setDownloadListener { url, _, _, _, _ -> openExternal(Uri.parse(url)) }
     }
 
+    private fun loadStartPage() {
+        showLoading("Abrindo o VAIGO…")
+        webView.loadUrl("$baseUrl$START_URL_PATH")
+    }
+
+    private fun showLoading(message: String) {
+        loadingLabel.text = message
+        loadingProgress.progress = 8
+        loadingOverlay.animate().cancel()
+        loadingOverlay.alpha = 1f
+        loadingOverlay.visibility = View.VISIBLE
+    }
+
+    private fun revealWebContent() {
+        if (firstContentShown && loadingOverlay.visibility != View.VISIBLE) return
+        firstContentShown = true
+        webView.animate().cancel()
+        webView.animate().alpha(1f).setDuration(140L).start()
+        loadingOverlay.animate().cancel()
+        loadingOverlay.animate()
+            .alpha(0f)
+            .setDuration(LOADER_FADE_MS)
+            .withEndAction {
+                loadingOverlay.visibility = View.GONE
+                loadingOverlay.alpha = 1f
+            }
+            .start()
+    }
+
+    private fun applyNativePolish(view: WebView) {
+        // Ajustes não invasivos: não muda layout, rotas ou lógica do backend.
+        // Apenas melhora toque, tipografia e viewport dentro do WebView.
+        val script = """
+            (function () {
+              if (window.__vaigoNativePolish) return;
+              window.__vaigoNativePolish = true;
+
+              var viewport = document.querySelector('meta[name="viewport"]');
+              if (!viewport) {
+                viewport = document.createElement('meta');
+                viewport.name = 'viewport';
+                viewport.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
+                document.head.appendChild(viewport);
+              }
+
+              var style = document.createElement('style');
+              style.id = 'vaigo-native-polish';
+              style.textContent = `
+                html { -webkit-text-size-adjust: 100%; text-rendering: optimizeLegibility; }
+                body { -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+                button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
+                @media (prefers-reduced-motion: reduce) {
+                  html:focus-within { scroll-behavior: auto !important; }
+                }
+              `;
+              if (!document.getElementById(style.id)) document.head.appendChild(style);
+            })();
+        """.trimIndent()
+        view.evaluateJavascript(script, null)
+    }
+
     private fun routeNavigation(uri: Uri): Boolean {
         if (uri.scheme == "vaigo") {
-            handleAuthUri(uri)
+            if (uri.host == "retry") {
+                webView.loadUrl(uri.getQueryParameter("url") ?: "$baseUrl$START_URL_PATH")
+            } else {
+                handleAuthUri(uri)
+            }
             return true
         }
 
@@ -188,7 +334,9 @@ class MainActivity : Activity() {
         }
 
         if (isGoogleLoginUrl(uri)) {
-            showGoogleLoginDialog()
+            // O clique do usuário já é a confirmação. Abre direto no navegador seguro,
+            // removendo um popup e mantendo o mesmo PKCE + deep link do backend.
+            startBrowserGoogleLogin()
             return true
         }
 
@@ -206,15 +354,6 @@ class MainActivity : Activity() {
         if (!isTrustedHost(uri)) return false
         val path = uri.path?.trimEnd('/') ?: return false
         return path == "/login/google" || path == "/auth/google"
-    }
-
-    private fun showGoogleLoginDialog() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.google_dialog_title)
-            .setMessage(R.string.google_dialog_message)
-            .setNegativeButton(R.string.cancel, null)
-            .setPositiveButton(R.string.google_dialog_continue) { _, _ -> startBrowserGoogleLogin() }
-            .show()
     }
 
     private fun startBrowserGoogleLogin() {
@@ -254,14 +393,18 @@ class MainActivity : Activity() {
     private fun handleAuthUri(uri: Uri) {
         val code = uri.getQueryParameter("code").orEmpty()
         val state = uri.getQueryParameter("state").orEmpty()
-        val expected = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PENDING_AUTH_STATE, "").orEmpty()
+        val expected = getSharedPreferences(PREFS, MODE_PRIVATE)
+            .getString(PENDING_AUTH_STATE, "")
+            .orEmpty()
 
         if (code.isBlank() || state.isBlank() || expected.isBlank() || state != expected) {
             Toast.makeText(this, "Não foi possível validar o retorno do Google.", Toast.LENGTH_LONG).show()
             webView.loadUrl("$baseUrl/login")
             return
         }
-        val verifier = getSharedPreferences(PREFS, MODE_PRIVATE).getString(PENDING_AUTH_VERIFIER, "").orEmpty()
+        val verifier = getSharedPreferences(PREFS, MODE_PRIVATE)
+            .getString(PENDING_AUTH_VERIFIER, "")
+            .orEmpty()
         if (verifier.isBlank()) {
             Toast.makeText(this, "A tentativa de login expirou. Tente novamente.", Toast.LENGTH_LONG).show()
             webView.loadUrl("$baseUrl/login")
@@ -271,7 +414,7 @@ class MainActivity : Activity() {
     }
 
     private fun exchangeMobileCode(code: String, state: String, verifier: String) {
-        loadingOverlay.visibility = View.VISIBLE
+        showLoading("Concluindo seu acesso…")
         Thread {
             try {
                 val endpoint = URL("$baseUrl/mobile/auth/exchange")
@@ -305,7 +448,7 @@ class MainActivity : Activity() {
                 val cookieName = response.getString("cookie_name")
                 val rememberToken = response.getString("remember_token")
                 val maxAge = response.optLong("max_age", 60L * 60L * 24L * 365L)
-                val entry = response.optString("entry", "/mobile/entry")
+                val entry = response.optString("entry", START_URL_PATH)
 
                 mainHandler.post {
                     val cookie = "$cookieName=$rememberToken; Path=/; Max-Age=$maxAge; Secure; HttpOnly; SameSite=Lax"
@@ -315,14 +458,17 @@ class MainActivity : Activity() {
                             .remove(PENDING_AUTH_STATE)
                             .remove(PENDING_AUTH_VERIFIER)
                             .apply()
-                        Toast.makeText(this, "Login concluído.", Toast.LENGTH_SHORT).show()
                         webView.loadUrl(if (entry.startsWith("/")) "$baseUrl$entry" else entry)
                     }
                 }
             } catch (_: Exception) {
                 mainHandler.post {
                     loadingOverlay.visibility = View.GONE
-                    Toast.makeText(this, "O login expirou ou não pôde ser concluído. Tente novamente.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "O login expirou ou não pôde ser concluído. Tente novamente.",
+                        Toast.LENGTH_LONG
+                    ).show()
                     webView.loadUrl("$baseUrl/login")
                 }
             }
@@ -356,15 +502,41 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showOfflinePage() {
+    private fun showOfflinePage(retryUrl: String) {
+        firstContentShown = true
+        webView.alpha = 1f
+        val safeRetryUrl = retryUrl
+            .replace("&", "&amp;")
+            .replace("\"", "&quot;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
         val html = """
-            <!doctype html><html><meta name=viewport content='width=device-width,initial-scale=1'>
-            <body style='margin:0;min-height:100vh;display:grid;place-items:center;background:#f7f7fb;font-family:system-ui;color:#17171d'>
-            <main style='padding:28px;text-align:center;max-width:360px'>
-              <div style='font-size:38px'>↻</div><h2>Sem conexão</h2>
-              <p style='color:#666673;line-height:1.5'>Verifique sua internet e tente novamente.</p>
-              <button onclick='location.reload()' style='border:0;background:#5957e8;color:white;padding:13px 18px;border-radius:14px;font-weight:700'>Tentar novamente</button>
-            </main></body></html>
+            <!doctype html>
+            <html lang="pt-BR">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+              <style>
+                *{box-sizing:border-box}
+                html,body{margin:0;min-height:100%;background:#f7f7fb;color:#17171d;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+                body{min-height:100vh;display:grid;place-items:center;padding:28px}
+                main{width:min(100%,380px);background:#fff;border:1px solid #ececf2;border-radius:28px;padding:28px;text-align:center;box-shadow:0 18px 52px rgba(33,33,50,.08)}
+                .mark{width:58px;height:58px;margin:0 auto 18px;border-radius:18px;background:#5957e8;display:grid;place-items:center;color:#fff;font-size:28px;font-weight:800}
+                h1{font-size:22px;line-height:1.15;margin:0 0 9px}
+                p{font-size:15px;line-height:1.5;color:#6b6b78;margin:0 0 22px}
+                a{display:block;width:100%;border-radius:16px;padding:14px 18px;background:#5957e8;color:#fff;font-size:15px;font-weight:750;text-decoration:none}
+                a:active{transform:scale(.985)}
+              </style>
+            </head>
+            <body>
+              <main>
+                <div class="mark">V</div>
+                <h1>Sem conexão</h1>
+                <p>Confira sua internet e tente abrir o VAIGO novamente.</p>
+                <a href="$safeRetryUrl">Tentar novamente</a>
+              </main>
+            </body>
+            </html>
         """.trimIndent()
         webView.loadDataWithBaseURL(baseUrl, html, "text/html", "UTF-8", null)
     }
@@ -387,7 +559,11 @@ class MainActivity : Activity() {
             geoCallback = null
             geoOrigin = null
             if (!granted && !shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
-                Toast.makeText(this, "Ative a localização nas configurações para usar navegação GPS.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "Ative a localização nas configurações para usar navegação GPS.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
@@ -419,9 +595,11 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null)
         webView.stopLoading()
         webView.webChromeClient = null
         webView.webViewClient = WebViewClient()
+        webView.removeAllViews()
         webView.destroy()
         super.onDestroy()
     }

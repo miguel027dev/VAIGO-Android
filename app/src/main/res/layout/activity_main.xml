@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/vaigo_bg">
@@ -7,21 +8,66 @@
     <WebView
         android:id="@+id/webView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="@color/vaigo_bg" />
 
     <FrameLayout
         android:id="@+id/loadingOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#F7F7FB"
+        android:background="@drawable/splash_background"
         android:clickable="true"
-        android:focusable="true">
+        android:focusable="true"
+        android:importantForAccessibility="noHideDescendants">
 
-        <ProgressBar
-            android:layout_width="46dp"
-            android:layout_height="46dp"
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:indeterminateTint="@color/vaigo_primary" />
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="28dp">
+
+            <ImageView
+                android:id="@+id/logo"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/ic_vaigo_logo" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="0.10"
+                android:text="VAIGO"
+                android:textColor="@color/black"
+                android:textSize="24sp" />
+
+            <TextView
+                android:id="@+id/loadingLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fontFamily="sans-serif"
+                android:text="@string/loading_app"
+                android:textColor="@color/vaigo_text_secondary"
+                android:textSize="13sp" />
+
+            <ProgressBar
+                android:id="@+id/loadingProgress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="148dp"
+                android:layout_height="3dp"
+                android:layout_marginTop="22dp"
+                android:max="100"
+                android:progress="8"
+                android:progressBackgroundTint="@color/vaigo_progress_track"
+                android:progressTint="@color/vaigo_primary" />
+
+        </LinearLayout>
 
     </FrameLayout>
 
