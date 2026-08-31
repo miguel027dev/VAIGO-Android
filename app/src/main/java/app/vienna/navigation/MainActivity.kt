@@ -82,10 +82,19 @@ class MainActivity : Activity() {
     private lateinit var nativeAdHost: FrameLayout
 
     @Volatile private var adsInitialized = false
+    @Volatile private var latestNativeAdBounds: String? = null
+    @Volatile private var nativeAdFrameScheduled = false
     private var nativeAdLoading = false
+    private var nativeAdRequestedVisible = false
+    private var nativeAdReadyNotified = false
     private var currentNativeAd: NativeAd? = null
     private var currentNativeAdLoadedAt = 0L
     private var pendingNativeAdBounds: String? = null
+    private var lastNativeAdWidth = -1
+    private var lastNativeAdHeight = -1
+    private var lastNativeAdX = Float.NaN
+    private var lastNativeAdY = Float.NaN
+    private var appliedNativeTheme: String? = null
 
     private var geoOrigin: String? = null
     private var geoCallback: GeolocationPermissions.Callback? = null
@@ -142,6 +151,8 @@ class MainActivity : Activity() {
     }
 
     private fun applyNativeTheme(mode: String) {
+        if (appliedNativeTheme == mode) return
+        appliedNativeTheme = mode
         val black = mode == THEME_BLACK
         val background = Color.parseColor(if (black) "#171512" else "#FFFBF2")
         val muted = Color.parseColor(if (black) "#C7BBB3" else "#706861")
@@ -185,6 +196,9 @@ class MainActivity : Activity() {
         webView.apply {
             setBackgroundColor(Color.parseColor(if (nativeTheme() == THEME_BLACK) "#171512" else "#FFFBF2"))
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            if (Build.VERSION.SDK_INT >= 26) {
+                setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true)
+            }
             overScrollMode = View.OVER_SCROLL_NEVER
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
@@ -363,7 +377,9 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun setTheme(mode: String?) {
             val normalized = if (mode == THEME_BLACK) THEME_BLACK else THEME_LIGHT
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(THEME_MODE, normalized).apply()
+            val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+            if (prefs.getString(THEME_MODE, THEME_LIGHT) == normalized && appliedNativeTheme == normalized) return
+            prefs.edit().putString(THEME_MODE, normalized).apply()
             mainHandler.post { applyNativeTheme(normalized) }
         }
 
@@ -373,11 +389,22 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun showSearchNativeAd(boundsJson: String?) {
             if (boundsJson.isNullOrBlank()) return
-            mainHandler.post { handleNativeSearchAdRequest(boundsJson) }
+            latestNativeAdBounds = boundsJson
+            if (nativeAdFrameScheduled) return
+            nativeAdFrameScheduled = true
+            mainHandler.post {
+                webView.postOnAnimation {
+                    nativeAdFrameScheduled = false
+                    val latest = latestNativeAdBounds
+                    latestNativeAdBounds = null
+                    if (!latest.isNullOrBlank()) handleNativeSearchAdRequest(latest)
+                }
+            }
         }
 
         @JavascriptInterface
         fun hideSearchNativeAd() {
+            latestNativeAdBounds = null
             mainHandler.post { hideNativeSearchAd(keepCached = true) }
         }
     }
@@ -386,9 +413,10 @@ class MainActivity : Activity() {
         nativeAdHost.visibility = View.GONE
         nativeAdHost.isClickable = false
         nativeAdHost.isFocusable = false
+        nativeAdHost.translationZ = dp(18).toFloat()
         Thread {
             try {
-                MobileAds.initialize(this) {
+                MobileAds.initialize(applicationContext) {
                     adsInitialized = true
                     mainHandler.post {
                         pendingNativeAdBounds?.let { bounds ->
@@ -421,6 +449,8 @@ class MainActivity : Activity() {
             return
         }
 
+        nativeAdRequestedVisible = true
+
         if (!adsInitialized) {
             pendingNativeAdBounds = boundsJson
             return
@@ -430,16 +460,25 @@ class MainActivity : Activity() {
             System.currentTimeMillis() - currentNativeAdLoadedAt < NATIVE_AD_MAX_AGE_MS
         }
         if (freshAd != null) {
-            if (nativeAdHost.childCount == 0) renderNativeAd(freshAd)
-            nativeAdHost.visibility = View.VISIBLE
-            notifySearchAdState("ready")
+            showNativeAd(freshAd)
             return
         }
 
         currentNativeAd?.destroy()
         currentNativeAd = null
         nativeAdHost.removeAllViews()
+        nativeAdReadyNotified = false
         loadNativeSearchAd()
+    }
+
+    private fun showNativeAd(ad: NativeAd) {
+        if (!nativeAdRequestedVisible) return
+        if (nativeAdHost.childCount == 0) renderNativeAd(ad)
+        if (nativeAdHost.visibility != View.VISIBLE) nativeAdHost.visibility = View.VISIBLE
+        if (!nativeAdReadyNotified) {
+            nativeAdReadyNotified = true
+            notifySearchAdState("ready")
+        }
     }
 
     private fun updateNativeAdBounds(boundsJson: String): Boolean {
@@ -461,11 +500,30 @@ class MainActivity : Activity() {
             val safeHeight = height.coerceAtMost(maxHeight - top)
             if (safeWidth < dp(220) || safeHeight < dp(96)) return false
 
-            nativeAdHost.layoutParams = FrameLayout.LayoutParams(safeWidth, safeHeight).apply {
-                leftMargin = left
-                topMargin = top
+            // Width/height need layout only when they really changed. Position is a
+            // GPU translation, so scrolling no longer forces a full Android layout pass.
+            if (safeWidth != lastNativeAdWidth || safeHeight != lastNativeAdHeight) {
+                val params = (nativeAdHost.layoutParams as? FrameLayout.LayoutParams)
+                    ?: FrameLayout.LayoutParams(safeWidth, safeHeight)
+                params.width = safeWidth
+                params.height = safeHeight
+                params.leftMargin = 0
+                params.topMargin = 0
+                nativeAdHost.layoutParams = params
+                lastNativeAdWidth = safeWidth
+                lastNativeAdHeight = safeHeight
             }
-            nativeAdHost.translationZ = dp(18).toFloat()
+
+            val x = left.toFloat()
+            val y = top.toFloat()
+            if (lastNativeAdX.isNaN() || kotlin.math.abs(lastNativeAdX - x) >= 1f) {
+                nativeAdHost.translationX = x
+                lastNativeAdX = x
+            }
+            if (lastNativeAdY.isNaN() || kotlin.math.abs(lastNativeAdY - y) >= 1f) {
+                nativeAdHost.translationY = y
+                lastNativeAdY = y
+            }
             true
         } catch (_: Exception) {
             false
@@ -486,9 +544,8 @@ class MainActivity : Activity() {
                 currentNativeAd?.destroy()
                 currentNativeAd = ad
                 currentNativeAdLoadedAt = System.currentTimeMillis()
-                renderNativeAd(ad)
-                nativeAdHost.visibility = View.VISIBLE
-                notifySearchAdState("ready")
+                nativeAdReadyNotified = false
+                if (nativeAdRequestedVisible) showNativeAd(ad)
             }
             .withAdListener(object : AdListener() {
                 override fun onAdFailedToLoad(error: LoadAdError) {
@@ -514,7 +571,6 @@ class MainActivity : Activity() {
 
         val adView = NativeAdView(this).apply {
             background = roundedDrawable(cardBg, border, 22f)
-            elevation = dp(5).toFloat()
             setPadding(dp(14), dp(11), dp(12), dp(11))
         }
 
@@ -617,8 +673,13 @@ class MainActivity : Activity() {
     }
 
     private fun hideNativeSearchAd(keepCached: Boolean) {
-        if (::nativeAdHost.isInitialized) nativeAdHost.visibility = View.GONE
+        nativeAdRequestedVisible = false
+        nativeAdReadyNotified = false
         pendingNativeAdBounds = null
+        latestNativeAdBounds = null
+        if (::nativeAdHost.isInitialized && nativeAdHost.visibility != View.GONE) {
+            nativeAdHost.visibility = View.GONE
+        }
         if (!keepCached) {
             currentNativeAd?.destroy()
             currentNativeAd = null
@@ -669,7 +730,7 @@ class MainActivity : Activity() {
               var style = document.createElement('style');
               style.id = 'vienna-native-polish';
               style.textContent = `
-                html { -webkit-text-size-adjust: 100%; text-rendering: optimizeLegibility; }
+                html { -webkit-text-size-adjust: 100%; text-rendering: auto; }
                 body { -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
                 button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
                 @media (prefers-reduced-motion: reduce) {
@@ -977,6 +1038,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        latestNativeAdBounds = null
+        nativeAdRequestedVisible = false
         currentNativeAd?.destroy()
         currentNativeAd = null
         mainHandler.removeCallbacksAndMessages(null)

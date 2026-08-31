@@ -1,0 +1,12 @@
+VIENNA Android Performance Patch V181
+
+Mudancas principais:
+- elimina loop Android <-> JavaScript no estado ready do anuncio
+- agrupa atualizacoes do bridge em no maximo uma por frame
+- move o NativeAd com translationX/Y em vez de relayout a cada movimento
+- evita redraw/rebuild repetido de tema
+- remove camada de elevation redundante do card do anuncio
+- mantem o renderer do WebView em prioridade alta
+- deixa a tipografia do WebView com text-rendering auto
+
+Aplique sobre a raiz atual do repositorio Android preservando a pasta .git.
