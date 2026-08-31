@@ -1,5 +1,5 @@
---- /mnt/data/vaigo_v66_original/wesafe-main/db_backend.py	2026-08-21 19:14:10.000000000 +0000
-+++ /mnt/data/vaigo_android_work/wesafe-main/db_backend.py	2026-08-21 19:39:01.442695465 +0000
+--- a/db_backend.py	2026-08-21 19:14:10.000000000 +0000
++++ b/db_backend.py	2026-08-21 19:39:01.442695465 +0000
 @@ -314,6 +314,17 @@
      )
      """,

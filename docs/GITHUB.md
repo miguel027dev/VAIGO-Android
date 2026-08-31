@@ -1,16 +1,18 @@
-# GitHub
+# GitHub — VIENNA Android
 
-## Envio inicial
+Variáveis recomendadas no repositório:
 
-```bash
-git init
-git add .
-git commit -m "VAIGO Android v1"
-git branch -M main
-git remote add origin URL_DO_REPOSITORIO
-git push -u origin main
+```text
+VIENNA_BASE_URL=https://seu-backend-de-producao
+VIENNA_MOBILE_RETURN_URI=vienna://auth/callback
 ```
 
-## Build automático
+Exemplo de commit:
 
-O arquivo `.github/workflows/build-apk.yml` gera `app-debug.apk` a cada push para `main` e também manualmente em `workflow_dispatch`.
+```bash
+git add .
+git commit -m "VIENNA Android rebrand"
+git push
+```
+
+Depois use **Actions → Build VIENNA APK** e baixe `vienna-debug-apk`.

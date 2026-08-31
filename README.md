@@ -1,66 +1,66 @@
-# VAIGO Android
+# VIENNA Android
 
-APK Android leve do VAIGO usando WebView para a aplicação e **navegador externo para Google OAuth**.
+APK Android da VIENNA baseado em WebView, com identidade visual completa da marca, GPS, uploads, links externos e login Google pelo navegador do aparelho.
 
-## O que esta versão melhora
+## Identidade aplicada
 
-- Remove a espera artificial de 3 segundos na splash: o WebView começa a carregar imediatamente.
-- Usa a splash nativa do Android e um loader curto, clean e integrado enquanto o servidor responde.
-- Faz fade suave para o conteúdo assim que o primeiro frame real da página fica visível.
-- Mantém aceleração por hardware, cache padrão do WebView e barras de rolagem invisíveis.
-- Trata Android 15/target 35 para evitar conteúdo atrás das barras do sistema.
-- Mantém o layout do backend intacto e aplica apenas ajustes seguros de toque/viewport/tipografia.
-- Simplifica o login Google: tocar em Google já abre o navegador seguro, sem popup intermediário.
-- Melhora a tela offline e o comportamento de retry.
-
-## Login Google
-
-O APK intercepta `/login/google` e `/auth/google`. Em vez de abrir o Google dentro do WebView, inicia o navegador do aparelho. Depois do login, o servidor retorna um **código de uso único** para `vaigo://auth/callback`; o APK troca esse código por uma sessão persistente e grava a sessão no `CookieManager` do WebView.
-
-O access token do Google nunca é colocado no deep link.
-
-## Fluxo
-
-1. O APK abre e começa a carregar `/mobile/entry` imediatamente.
-2. Se o cookie persistente ainda for válido, entra direto no VAIGO.
-3. Se não houver login, o site abre a página de login.
-4. Ao tocar em Google, o navegador real é aberto.
-5. Google autentica no navegador e volta ao site.
-6. O site gera um código de uso único e chama `vaigo://auth/callback`.
-7. O APK valida `state` + verificador PKCE, troca o código em `/mobile/auth/exchange`, grava o cookie no WebView e abre o app autenticado.
-
-## URL do site
-
-O padrão está em `gradle.properties`:
-
-```properties
-VAIGO_BASE_URL=https://vaigo.online
-```
-
-Também é possível criar no GitHub **Settings → Secrets and variables → Actions → Variables**:
-
-- `VAIGO_BASE_URL` = URL de produção do VAIGO
-
-## Gerar APK pelo GitHub
-
-1. Envie este projeto para a raiz do repositório.
-2. Abra **Actions → Build VAIGO APK → Run workflow**.
-3. Ao terminar, abra o run e baixe o artifact `vaigo-debug-apk`.
+- nome do app: **VIENNA**
+- package/applicationId: `app.vienna.navigation`
+- deep link de autenticação: `vienna://auth/callback`
+- ícone, adaptive icon, themed icon e splash VIENNA
+- paleta: `#F59A62`, `#FFC39B`, `#D9703F`, `#FFFBF2`, `#27231F`, `#706861`
+- splash nativo sincronizado com o modo Black salvo pelo site
+- User-Agent: `VIENNA-Android/<versão>`
 
 ## Backend
 
-O backend continua usando as mesmas rotas:
+O endereço do backend é configurável por `VIENNA_BASE_URL`. O projeto está apontando para o host atual de produção para não interromper o app durante a migração de domínio.
 
-- `/mobile/entry`
-- `/mobile/auth/google/start`
-- `/mobile/auth/finish`
-- `/mobile/auth/exchange`
+Em `gradle.properties`:
 
-No Render mantenha:
-
-```text
-MOBILE_AUTH_RETURN_URI=vaigo://auth/callback
-MOBILE_AUTH_TTL_SECONDS=300
+```properties
+VIENNA_BASE_URL=https://vaigo.online
+VIENNA_MOBILE_RETURN_URI=vienna://auth/callback
 ```
 
-Mantenha também `DATABASE_URL`, `SECRET_KEY`, Google e Mapbox como já estão configurados.
+No GitHub Actions, crie as variables:
+
+- `VIENNA_BASE_URL`
+- `VIENNA_MOBILE_RETURN_URI` (opcional; padrão `vienna://auth/callback`)
+
+## Login Google
+
+O Google OAuth não roda dentro do WebView. O fluxo é:
+
+1. usuário toca em continuar com Google;
+2. o APK abre o navegador do sistema;
+3. o backend conclui o OAuth HTTPS;
+4. o backend emite um código de uso único;
+5. o navegador retorna para `vienna://auth/callback`;
+6. o APK troca o código por uma sessão persistente e injeta o cookie no WebView.
+
+O backend precisa aceitar:
+
+```env
+MOBILE_AUTH_RETURN_URI=vienna://auth/callback
+```
+
+O callback cadastrado no Google continua sendo o callback **HTTPS do site**, nunca o custom scheme.
+
+## Build local
+
+Requisitos: Java 17+, Android SDK 35 e Gradle 8.9.
+
+```bash
+gradle --no-daemon clean assembleDebug
+```
+
+APK:
+
+```text
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+## GitHub Actions
+
+Abra **Actions → Build VIENNA APK → Run workflow**. O artifact gerado se chama `vienna-debug-apk`.

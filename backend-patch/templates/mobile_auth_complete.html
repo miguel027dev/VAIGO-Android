@@ -3,27 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Voltar para o VAIGO</title>
+  <title>Voltar para a VIENNA</title>
   <style>
-    *{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;background:#f7f7fb;color:#17171d;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-    .card{width:min(440px,100%);padding:32px;border:1px solid #e7e7ef;border-radius:28px;background:#fff;box-shadow:0 18px 60px rgba(22,22,35,.09);text-align:center}
-    .mark{width:68px;height:68px;margin:0 auto 20px;border-radius:22px;background:linear-gradient(135deg,#706df2,#4e50d8);display:grid;place-items:center;color:#fff;font-size:29px;font-weight:900}
-    h1{margin:0 0 10px;font-size:24px}.muted{margin:0 0 24px;color:#656571;line-height:1.5}
-    a{display:block;text-decoration:none;background:#5957e8;color:white;font-weight:800;padding:15px 18px;border-radius:16px}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:24px;background:#FFFBF2;color:#27231F;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .card{width:min(440px,100%);padding:32px;border:1px solid #F0DED3;border-radius:28px;background:#fff;box-shadow:0 18px 60px rgba(74,51,36,.10);text-align:center}
+    .mark{width:68px;height:68px;margin:0 auto 20px;border-radius:22px;background:linear-gradient(135deg,#FFC39B,#F59A62 58%,#D9703F);display:grid;place-items:center;color:#fff;font-size:30px;font-weight:900;box-shadow:0 12px 30px rgba(217,112,63,.22)}
+    h1{margin:0 0 10px;font-size:24px;letter-spacing:-.6px}.muted{margin:0 0 24px;color:#706861;line-height:1.5}
+    a{display:block;text-decoration:none;background:linear-gradient(135deg,#FFC39B,#F59A62 58%,#D9703F);color:white;font-weight:850;padding:15px 18px;border-radius:16px;box-shadow:0 10px 24px rgba(217,112,63,.18)}
+    @media(prefers-color-scheme:dark){body{background:#171512;color:#FFFBF2}.card{background:#211E1B;border-color:#3B342F;box-shadow:0 18px 60px rgba(0,0,0,.30)}.muted{color:#C7BBB3}}
   </style>
 </head>
 <body>
   <main class="card">
-    <div class="mark">V</div>
+    <div class="mark">➤</div>
     {% if success %}
       <h1>Login concluído</h1>
-      <p class="muted">Sua conta foi confirmada. Volte para o aplicativo para continuar.</p>
-      <a id="back" href="{{ deep_link|e }}">Voltar para o VAIGO</a>
-      <script>setTimeout(function(){ location.href = {{ deep_link|tojson }}; }, 450);</script>
+      <p class="muted">Seu acesso foi confirmado. Volte para a VIENNA para continuar.</p>
+      <a id="back" href="{{ deep_link|e }}">Voltar para a VIENNA</a>
     {% else %}
-      <h1>Esse login expirou</h1>
-      <p class="muted">Volte ao aplicativo e tente entrar com Google novamente.</p>
+      <h1>Link expirado</h1>
+      <p class="muted">A tentativa de login expirou. Volte ao aplicativo e tente novamente.</p>
     {% endif %}
   </main>
+  {% if success and deep_link %}<script>setTimeout(function(){location.href={{ deep_link|tojson }}},120);</script>{% endif %}
 </body>
 </html>

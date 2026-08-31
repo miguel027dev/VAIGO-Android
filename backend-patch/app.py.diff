@@ -1,12 +1,12 @@
---- /mnt/data/vaigo_v66_original/wesafe-main/app.py	2026-08-21 19:14:40.000000000 +0000
-+++ /mnt/data/vaigo_android_work/wesafe-main/app.py	2026-08-21 19:39:01.442183725 +0000
+--- a/app.py	2026-08-21 19:14:40.000000000 +0000
++++ b/app.py	2026-08-21 19:39:01.442183725 +0000
 @@ -101,6 +101,11 @@
  GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
  GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
  
 +# Mobile app auth bridge. Google OAuth must happen in a real browser, not inside
 +# Android WebView. The browser returns a short-lived one-time code to the APK.
-+MOBILE_AUTH_RETURN_URI = os.environ.get("MOBILE_AUTH_RETURN_URI", "vaigo://auth/callback").strip()
++MOBILE_AUTH_RETURN_URI = os.environ.get("MOBILE_AUTH_RETURN_URI", "vienna://auth/callback").strip()
 +MOBILE_AUTH_TTL_SECONDS = max(120, min(900, int(os.environ.get("MOBILE_AUTH_TTL_SECONDS", "300") or 300)) )
 +
  # V46 — designated owner account + explicit motorized profiles.

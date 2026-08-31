@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="vienna_bg">#FFFBF2</color>
-    <color name="vienna_surface">#FFF6EF</color>
+    <color name="vienna_bg">#171512</color>
+    <color name="vienna_surface">#211E1B</color>
     <color name="vienna_primary">#F59A62</color>
     <color name="vienna_primary_light">#FFC39B</color>
     <color name="vienna_primary_dark">#D9703F</color>
-    <color name="vienna_ink">#27231F</color>
-    <color name="vienna_muted">#706861</color>
-    <color name="vienna_progress_track">#F1DED1</color>
+    <color name="vienna_ink">#FFFBF2</color>
+    <color name="vienna_muted">#C7BBB3</color>
+    <color name="vienna_progress_track">#3A332E</color>
     <color name="white">#FFFFFF</color>
     <color name="black">#171512</color>
 </resources>

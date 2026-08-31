@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "VAIGO-Android"
+rootProject.name = "VIENNA-Android"
 include(":app")

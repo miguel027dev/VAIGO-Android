@@ -1,29 +1,39 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
 val configuredBaseUrl = (
-    System.getenv("VAIGO_BASE_URL")?.takeIf { it.isNotBlank() }
-        ?: providers.gradleProperty("VAIGO_BASE_URL").orNull?.takeIf { it.isNotBlank() }
+    System.getenv("VIENNA_BASE_URL")?.takeIf { it.isNotBlank() }
+        ?: providers.gradleProperty("VIENNA_BASE_URL").orNull?.takeIf { it.isNotBlank() }
+        // O host pode continuar sendo o backend atual enquanto o domínio público
+        // migra; a marca e o identificador do APK são VIENNA.
         ?: "https://vaigo.online"
 ).trimEnd('/')
 
+val configuredReturnUri = (
+    System.getenv("VIENNA_MOBILE_RETURN_URI")?.takeIf { it.isNotBlank() }
+        ?: providers.gradleProperty("VIENNA_MOBILE_RETURN_URI").orNull?.takeIf { it.isNotBlank() }
+        ?: "vienna://auth/callback"
+)
+
+require(configuredBaseUrl.startsWith("https://")) {
+    "VIENNA_BASE_URL precisa usar HTTPS em builds de produção."
+}
+
 android {
-    namespace = "online.vaigo.app"
+    namespace = "app.vienna.navigation"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "online.vaigo.app"
+        applicationId = "app.vienna.navigation"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "2.0.0"
 
-        buildConfigField("String", "VAIGO_BASE_URL", "\"$configuredBaseUrl\"")
-        buildConfigField("String", "MOBILE_RETURN_URI", "\"vaigo://auth/callback\"")
+        buildConfigField("String", "VIENNA_BASE_URL", "\"$configuredBaseUrl\"")
+        buildConfigField("String", "MOBILE_RETURN_URI", "\"$configuredReturnUri\"")
     }
 
     buildFeatures {

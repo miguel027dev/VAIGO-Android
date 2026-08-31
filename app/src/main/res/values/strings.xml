@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">VAIGO</string>
+    <string name="app_name">VIENNA</string>
     <string name="loading_app">Preparando sua navegação…</string>
+    <string name="brand_tagline">Navegação clara. Destinos reais.</string>
 </resources>

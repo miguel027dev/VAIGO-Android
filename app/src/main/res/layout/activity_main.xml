@@ -3,69 +3,72 @@
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/vaigo_bg">
+    android:background="@color/vienna_bg">
 
     <WebView
         android:id="@+id/webView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:alpha="0"
-        android:background="@color/vaigo_bg" />
+        android:background="@color/vienna_bg" />
 
     <FrameLayout
         android:id="@+id/loadingOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@drawable/splash_background"
+        android:background="@color/vienna_bg"
         android:clickable="true"
         android:focusable="true"
         android:importantForAccessibility="noHideDescendants">
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="28dp">
+            android:paddingStart="30dp"
+            android:paddingEnd="30dp">
 
             <ImageView
-                android:id="@+id/logo"
-                android:layout_width="72dp"
+                android:id="@+id/brandBanner"
+                android:layout_width="280dp"
                 android:layout_height="72dp"
+                android:adjustViewBounds="true"
                 android:contentDescription="@string/app_name"
-                android:src="@drawable/ic_vaigo_logo" />
+                android:scaleType="fitCenter"
+                android:src="@drawable/vienna_brand_banner_light" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:fontFamily="sans-serif-black"
-                android:letterSpacing="0.10"
-                android:text="VAIGO"
-                android:textColor="@color/black"
-                android:textSize="24sp" />
+                android:layout_marginTop="12dp"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.01"
+                android:text="@string/brand_tagline"
+                android:textColor="@color/vienna_muted"
+                android:textSize="13sp" />
 
             <TextView
                 android:id="@+id/loadingLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:fontFamily="sans-serif"
+                android:layout_marginTop="24dp"
+                android:fontFamily="sans-serif-medium"
                 android:text="@string/loading_app"
-                android:textColor="@color/vaigo_text_secondary"
-                android:textSize="13sp" />
+                android:textColor="@color/vienna_muted"
+                android:textSize="12sp" />
 
             <ProgressBar
                 android:id="@+id/loadingProgress"
                 style="?android:attr/progressBarStyleHorizontal"
-                android:layout_width="148dp"
+                android:layout_width="164dp"
                 android:layout_height="3dp"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="16dp"
                 android:max="100"
                 android:progress="8"
-                android:progressBackgroundTint="@color/vaigo_progress_track"
-                android:progressTint="@color/vaigo_primary" />
+                android:progressBackgroundTint="@color/vienna_progress_track"
+                android:progressTint="@color/vienna_primary" />
 
         </LinearLayout>
 

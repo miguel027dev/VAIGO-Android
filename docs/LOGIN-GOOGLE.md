@@ -1,13 +1,21 @@
-# Google OAuth no APK
+# Login Google — VIENNA Android
 
-O Google não deve ser autenticado diretamente dentro de um WebView embutido. O VAIGO Android usa o navegador do aparelho e um handoff de sessão de uso único.
+A VIENNA usa navegador externo para OAuth, evitando login Google dentro de WebView.
 
-## Segurança do handoff
+Fluxo seguro:
 
-- O APK gera um `state` e um verificador PKCE aleatórios de 256 bits.
-- O servidor recebe apenas o challenge PKCE e salva somente hashes do state/código.
-- O código de retorno expira por padrão em 5 minutos.
-- O código só pode ser usado uma vez.
-- O token do Google não é enviado ao APK nem aparece na URL.
-- O APK valida o `state` antes de aceitar o retorno.
-- O cookie persistente final continua revogável pela tabela `auth_sessions` do VAIGO.
+1. o APK cria `state`, verifier PKCE e challenge;
+2. abre `/mobile/auth/google/start` no navegador;
+3. o backend redireciona para o Google usando o callback HTTPS normal;
+4. após autenticar, o backend gera um código temporário de uso único;
+5. o navegador chama `vienna://auth/callback`;
+6. o APK valida `state`, envia o verifier e troca o código em `/mobile/auth/exchange`;
+7. a sessão persistente é salva no `CookieManager`.
+
+Configuração do backend:
+
+```env
+MOBILE_AUTH_RETURN_URI=vienna://auth/callback
+```
+
+O callback no Google Cloud permanece HTTPS.

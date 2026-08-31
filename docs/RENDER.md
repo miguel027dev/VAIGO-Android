@@ -1,21 +1,13 @@
-# Render — variáveis necessárias para o APK
+# Render / backend — VIENNA Android
 
-Além das variáveis atuais do site:
+O APK precisa dos endpoints de autenticação mobile presentes em `backend-patch/`.
 
-```text
-DATABASE_URL=...
-SECRET_KEY=...
-MAPBOX_ACCESS_TOKEN=...
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=https://SEU-DOMINIO/login/google/callback
+No serviço web configure:
+
+```env
+MOBILE_AUTH_RETURN_URI=vienna://auth/callback
 ```
 
-adicione:
+O `GOOGLE_REDIRECT_URI` continua sendo o callback HTTPS do site. Não cadastre `vienna://...` no Google Cloud; o custom scheme é usado apenas no retorno final do backend para o aplicativo.
 
-```text
-MOBILE_AUTH_RETURN_URI=vaigo://auth/callback
-MOBILE_AUTH_TTL_SECONDS=300
-```
-
-O `GOOGLE_REDIRECT_URI` continua sendo HTTPS do SITE. Não coloque `vaigo://...` no console do Google. O custom scheme é usado somente depois que o Google já retornou ao seu backend.
+Se o domínio do backend mudar, altere `VIENNA_BASE_URL` no projeto Android ou nas variables do GitHub Actions.

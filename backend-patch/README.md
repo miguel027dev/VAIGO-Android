@@ -1,17 +1,17 @@
-# Patch obrigatório no site VAIGO
+# Patch do backend para VIENNA Android
 
-O APK depende da ponte de autenticação mobile. O ZIP de backend V67 desta entrega já contém tudo aplicado.
+Este diretório documenta o handoff seguro entre o OAuth do navegador e o APK.
 
-Se preferir aplicar manualmente sobre a V66:
+No backend configure:
 
-- aplique `app.py.diff` em `app.py`;
-- aplique `db_backend.py.diff` em `db_backend.py`;
-- copie `templates/mobile_auth_complete.html`;
-- adicione no Render:
-
-```text
-MOBILE_AUTH_RETURN_URI=vaigo://auth/callback
-MOBILE_AUTH_TTL_SECONDS=300
+```env
+MOBILE_AUTH_RETURN_URI=vienna://auth/callback
 ```
 
-Não altere o redirect do Google para `vaigo://`. O callback cadastrado no Google continua sendo o callback HTTPS do seu site.
+O redirect do Google continua HTTPS. O backend só usa `vienna://auth/callback` depois de concluir a autenticação e criar um código temporário de uso único.
+
+Arquivos:
+
+- `app.py.diff`: endpoints `/mobile/entry`, `/mobile/auth/google/start`, `/mobile/auth/finish` e `/mobile/auth/exchange`;
+- `db_backend.py.diff`: tabela de códigos mobile;
+- `templates/mobile_auth_complete.html`: tela que devolve o usuário ao app.
