@@ -9,6 +9,21 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.Button
+import android.widget.LinearLayout
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdLoader
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.nativead.AdChoicesView
+import com.google.android.gms.ads.nativead.MediaView
+import com.google.android.gms.ads.nativead.NativeAd
+import com.google.android.gms.ads.nativead.NativeAdView
+import kotlin.math.roundToInt
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -53,6 +68,9 @@ class MainActivity : Activity() {
         private const val APP_SCHEME = "vienna"
         private const val START_URL_PATH = "/mobile/entry"
         private const val LOADER_FADE_MS = 180L
+        private const val ADMOB_NATIVE_UNIT_ID = "ca-app-pub-8278559850014123/5575870629"
+        private const val ADMOB_TEST_NATIVE_UNIT_ID = "ca-app-pub-3940256099942544/2247696110"
+        private const val NATIVE_AD_MAX_AGE_MS = 55L * 60L * 1000L
     }
 
     private lateinit var root: FrameLayout
@@ -61,6 +79,13 @@ class MainActivity : Activity() {
     private lateinit var loadingProgress: ProgressBar
     private lateinit var loadingLabel: TextView
     private lateinit var brandBanner: ImageView
+    private lateinit var nativeAdHost: FrameLayout
+
+    @Volatile private var adsInitialized = false
+    private var nativeAdLoading = false
+    private var currentNativeAd: NativeAd? = null
+    private var currentNativeAdLoadedAt = 0L
+    private var pendingNativeAdBounds: String? = null
 
     private var geoOrigin: String? = null
     private var geoCallback: GeolocationPermissions.Callback? = null
@@ -81,8 +106,10 @@ class MainActivity : Activity() {
         loadingProgress = findViewById(R.id.loadingProgress)
         loadingLabel = findViewById(R.id.loadingLabel)
         brandBanner = findViewById(R.id.brandBanner)
+        nativeAdHost = findViewById(R.id.nativeAdHost)
 
         configureSystemUi()
+        configureAds()
         configureWebView()
 
         if (!handleAuthDeepLink(intent)) {
@@ -143,6 +170,7 @@ class MainActivity : Activity() {
         brandBanner.contentDescription = getString(R.string.app_name)
         root.contentDescription = null
         loadingOverlay.elevation = if (black) 0f else 1f
+        refreshNativeAdTheme()
     }
 
     @Suppress("SetJavaScriptEnabled")
@@ -204,6 +232,7 @@ class MainActivity : Activity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 if (!url.isNullOrBlank()) lastMainFrameUrl = url
+                hideNativeSearchAd(keepCached = true)
                 if (!firstContentShown) showLoading("Abrindo a VIENNA…")
                 super.onPageStarted(view, url, favicon)
             }
@@ -337,7 +366,289 @@ class MainActivity : Activity() {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(THEME_MODE, normalized).apply()
             mainHandler.post { applyNativeTheme(normalized) }
         }
+
+        @JavascriptInterface
+        fun nativeAdsAvailable(): Boolean = true
+
+        @JavascriptInterface
+        fun showSearchNativeAd(boundsJson: String?) {
+            if (boundsJson.isNullOrBlank()) return
+            mainHandler.post { handleNativeSearchAdRequest(boundsJson) }
+        }
+
+        @JavascriptInterface
+        fun hideSearchNativeAd() {
+            mainHandler.post { hideNativeSearchAd(keepCached = true) }
+        }
     }
+
+    private fun configureAds() {
+        nativeAdHost.visibility = View.GONE
+        nativeAdHost.isClickable = false
+        nativeAdHost.isFocusable = false
+        Thread {
+            try {
+                MobileAds.initialize(this) {
+                    adsInitialized = true
+                    mainHandler.post {
+                        pendingNativeAdBounds?.let { bounds ->
+                            pendingNativeAdBounds = null
+                            handleNativeSearchAdRequest(bounds)
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                adsInitialized = false
+            }
+        }.start()
+    }
+
+    private fun nativeAdUnitId(): String = if (BuildConfig.DEBUG) {
+        // Google requires test inventory during development/debugging.
+        ADMOB_TEST_NATIVE_UNIT_ID
+    } else {
+        ADMOB_NATIVE_UNIT_ID
+    }
+
+    private fun handleNativeSearchAdRequest(boundsJson: String) {
+        if (!isTrustedCurrentPage()) {
+            hideNativeSearchAd(keepCached = true)
+            return
+        }
+
+        if (!updateNativeAdBounds(boundsJson)) {
+            hideNativeSearchAd(keepCached = true)
+            return
+        }
+
+        if (!adsInitialized) {
+            pendingNativeAdBounds = boundsJson
+            return
+        }
+
+        val freshAd = currentNativeAd?.takeIf {
+            System.currentTimeMillis() - currentNativeAdLoadedAt < NATIVE_AD_MAX_AGE_MS
+        }
+        if (freshAd != null) {
+            if (nativeAdHost.childCount == 0) renderNativeAd(freshAd)
+            nativeAdHost.visibility = View.VISIBLE
+            notifySearchAdState("ready")
+            return
+        }
+
+        currentNativeAd?.destroy()
+        currentNativeAd = null
+        nativeAdHost.removeAllViews()
+        loadNativeSearchAd()
+    }
+
+    private fun updateNativeAdBounds(boundsJson: String): Boolean {
+        return try {
+            val json = JSONObject(boundsJson)
+            val dpr = json.optDouble("dpr", resources.displayMetrics.density.toDouble())
+                .coerceIn(0.75, 6.0)
+            val left = (json.optDouble("left", -1.0) * dpr).roundToInt()
+            val top = (json.optDouble("top", -1.0) * dpr).roundToInt()
+            val width = (json.optDouble("width", 0.0) * dpr).roundToInt()
+            val height = (json.optDouble("height", 0.0) * dpr).roundToInt()
+
+            val maxWidth = webView.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+            val maxHeight = webView.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+            if (left < 0 || top < 0 || width < dp(220) || height < dp(96)) return false
+            if (left >= maxWidth || top >= maxHeight) return false
+
+            val safeWidth = width.coerceAtMost(maxWidth - left)
+            val safeHeight = height.coerceAtMost(maxHeight - top)
+            if (safeWidth < dp(220) || safeHeight < dp(96)) return false
+
+            nativeAdHost.layoutParams = FrameLayout.LayoutParams(safeWidth, safeHeight).apply {
+                leftMargin = left
+                topMargin = top
+            }
+            nativeAdHost.translationZ = dp(18).toFloat()
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun loadNativeSearchAd() {
+        if (nativeAdLoading) return
+        nativeAdLoading = true
+
+        val adLoader = AdLoader.Builder(this, nativeAdUnitId())
+            .forNativeAd { ad ->
+                nativeAdLoading = false
+                if (isFinishing || isDestroyed) {
+                    ad.destroy()
+                    return@forNativeAd
+                }
+                currentNativeAd?.destroy()
+                currentNativeAd = ad
+                currentNativeAdLoadedAt = System.currentTimeMillis()
+                renderNativeAd(ad)
+                nativeAdHost.visibility = View.VISIBLE
+                notifySearchAdState("ready")
+            }
+            .withAdListener(object : AdListener() {
+                override fun onAdFailedToLoad(error: LoadAdError) {
+                    nativeAdLoading = false
+                    hideNativeSearchAd(keepCached = false)
+                    notifySearchAdState("failed")
+                }
+            })
+            .build()
+
+        adLoader.loadAd(AdRequest.Builder().build())
+    }
+
+    private fun renderNativeAd(ad: NativeAd) {
+        nativeAdHost.removeAllViews()
+        val black = nativeTheme() == THEME_BLACK
+        val cardBg = Color.parseColor(if (black) "#211E1B" else "#FFFFFF")
+        val border = Color.parseColor(if (black) "#3B342F" else "#F1DED1")
+        val text = Color.parseColor(if (black) "#FFF8F2" else "#27231F")
+        val muted = Color.parseColor(if (black) "#C7BBB3" else "#706861")
+        val soft = Color.parseColor(if (black) "#2C2723" else "#FFF4EC")
+        val accent = Color.parseColor("#F59A62")
+
+        val adView = NativeAdView(this).apply {
+            background = roundedDrawable(cardBg, border, 22f)
+            elevation = dp(5).toFloat()
+            setPadding(dp(14), dp(11), dp(12), dp(11))
+        }
+
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val topRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val adBadge = TextView(this).apply {
+            text = "Anúncio"
+            setTextColor(accent)
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(dp(8), dp(3), dp(8), dp(3))
+            background = roundedDrawable(soft, Color.TRANSPARENT, 9f)
+        }
+        val advertiser = TextView(this).apply {
+            setTextColor(muted)
+            textSize = 11f
+            maxLines = 1
+            setPadding(dp(8), 0, dp(6), 0)
+        }
+        val adChoices = AdChoicesView(this)
+        topRow.addView(adBadge, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        topRow.addView(advertiser, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        topRow.addView(adChoices, LinearLayout.LayoutParams(dp(28), dp(28)))
+        column.addView(topRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        val contentRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(5), 0, 0)
+        }
+        val media = MediaView(this).apply {
+            background = roundedDrawable(soft, Color.TRANSPARENT, 14f)
+        }
+        contentRow.addView(media, LinearLayout.LayoutParams(dp(82), dp(74)))
+
+        val copy = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(11), 0, 0, 0)
+        }
+        val headline = TextView(this).apply {
+            setTextColor(text)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            maxLines = 2
+        }
+        val body = TextView(this).apply {
+            setTextColor(muted)
+            textSize = 11f
+            maxLines = 2
+            setPadding(0, dp(2), 0, dp(5))
+        }
+        val cta = Button(this).apply {
+            isAllCaps = false
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            minHeight = 0
+            minimumHeight = 0
+            setPadding(dp(14), dp(7), dp(14), dp(7))
+            background = roundedDrawable(accent, Color.TRANSPARENT, 12f)
+        }
+        copy.addView(headline, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        copy.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        copy.addView(cta, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        contentRow.addView(copy, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        column.addView(contentRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+
+        adView.addView(column, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        nativeAdHost.addView(adView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        advertiser.text = ad.advertiser.orEmpty()
+        advertiser.visibility = if (ad.advertiser.isNullOrBlank()) View.GONE else View.VISIBLE
+        headline.text = ad.headline
+        body.text = ad.body.orEmpty()
+        body.visibility = if (ad.body.isNullOrBlank()) View.GONE else View.VISIBLE
+        cta.text = ad.callToAction.orEmpty()
+        cta.visibility = if (ad.callToAction.isNullOrBlank()) View.GONE else View.VISIBLE
+        media.visibility = if (ad.mediaContent != null) View.VISIBLE else View.GONE
+
+        adView.headlineView = headline
+        adView.bodyView = body
+        adView.advertiserView = advertiser
+        adView.callToActionView = cta
+        adView.mediaView = media
+        adView.adChoicesView = adChoices
+        adView.setNativeAd(ad)
+    }
+
+    private fun refreshNativeAdTheme() {
+        val ad = currentNativeAd ?: return
+        if (::nativeAdHost.isInitialized && nativeAdHost.childCount > 0) renderNativeAd(ad)
+    }
+
+    private fun hideNativeSearchAd(keepCached: Boolean) {
+        if (::nativeAdHost.isInitialized) nativeAdHost.visibility = View.GONE
+        pendingNativeAdBounds = null
+        if (!keepCached) {
+            currentNativeAd?.destroy()
+            currentNativeAd = null
+            currentNativeAdLoadedAt = 0L
+            if (::nativeAdHost.isInitialized) nativeAdHost.removeAllViews()
+        }
+    }
+
+    private fun notifySearchAdState(state: String) {
+        val safe = JSONObject.quote(state)
+        webView.evaluateJavascript(
+            "window.ViennaSearchAds&&window.ViennaSearchAds.onNativeAdState($safe);",
+            null
+        )
+    }
+
+    private fun isTrustedCurrentPage(): Boolean {
+        val current = webView.url ?: return false
+        return try { isTrustedHost(Uri.parse(current)) } catch (_: Exception) { false }
+    }
+
+    private fun roundedDrawable(fill: Int, stroke: Int, radiusDp: Float): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = radiusDp * resources.displayMetrics.density
+            setColor(fill)
+            if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
+        }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
 
     private fun applyNativePolish(view: WebView) {
         // Pequena ponte de acabamento: mantém o WebView responsivo e sincroniza
@@ -666,6 +977,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        currentNativeAd?.destroy()
+        currentNativeAd = null
         mainHandler.removeCallbacksAndMessages(null)
         webView.stopLoading()
         webView.webChromeClient = null

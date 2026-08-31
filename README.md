@@ -19,7 +19,7 @@ O endereço do backend é configurável por `VIENNA_BASE_URL`. O projeto está a
 Em `gradle.properties`:
 
 ```properties
-VIENNA_BASE_URL=https://vaigo.online
+VIENNA_BASE_URL=https://SEU-DOMINIO-VIENNA
 VIENNA_MOBILE_RETURN_URI=vienna://auth/callback
 ```
 

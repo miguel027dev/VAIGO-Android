@@ -12,6 +12,17 @@
         android:alpha="0"
         android:background="@color/vienna_bg" />
 
+
+    <!-- Native AdMob card rendered only over the HTML search-results slot. -->
+    <FrameLayout
+        android:id="@+id/nativeAdHost"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:elevation="18dp" />
+
     <FrameLayout
         android:id="@+id/loadingOverlay"
         android:layout_width="match_parent"
