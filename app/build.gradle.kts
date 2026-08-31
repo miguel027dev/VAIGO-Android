@@ -8,7 +8,7 @@ val configuredBaseUrl = (
         ?: providers.gradleProperty("VIENNA_BASE_URL").orNull?.takeIf { it.isNotBlank() }
         // O host pode continuar sendo o backend atual enquanto o domínio público
         // migra; a marca e o identificador do APK são VIENNA.
-        ?: "https://vaigo.online"
+        ?: "https://vaigo-1.onrender.com"
 ).trimEnd('/')
 
 val configuredReturnUri = (
