@@ -507,7 +507,7 @@ class MainActivity : Activity() {
         val black = nativeTheme() == THEME_BLACK
         val cardBg = Color.parseColor(if (black) "#211E1B" else "#FFFFFF")
         val border = Color.parseColor(if (black) "#3B342F" else "#F1DED1")
-        val text = Color.parseColor(if (black) "#FFF8F2" else "#27231F")
+        val primaryText = Color.parseColor(if (black) "#FFF8F2" else "#27231F")
         val muted = Color.parseColor(if (black) "#C7BBB3" else "#706861")
         val soft = Color.parseColor(if (black) "#2C2723" else "#FFF4EC")
         val accent = Color.parseColor("#F59A62")
@@ -563,7 +563,7 @@ class MainActivity : Activity() {
             setPadding(dp(11), 0, 0, 0)
         }
         val headline = TextView(this).apply {
-            setTextColor(text)
+            setTextColor(primaryText)
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             maxLines = 2

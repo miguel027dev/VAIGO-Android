@@ -1,0 +1,5 @@
+Correcoes do build GitHub Actions #9:
+1. Kotlin Gradle Plugin: 2.0.21 -> 2.3.0 para compatibilidade com Google Mobile Ads 25.4.0.
+2. MainActivity Vienna: renomeado 'text' (cor) para 'primaryText' para evitar shadowing de TextView.text.
+3. Ao aplicar sobre um repositorio antigo, remova app/src/main/java/online/vaigo/app/MainActivity.kt.
+   O script CLEAN-LEGACY-VAIGO.sh faz essa limpeza localmente.

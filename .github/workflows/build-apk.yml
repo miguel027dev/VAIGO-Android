@@ -1,4 +1,4 @@
-name: Build VAIGO APK
+name: Build VIENNA APK
 
 on:
   push:
@@ -33,12 +33,12 @@ jobs:
 
       - name: Build debug APK
         env:
-          VAIGO_BASE_URL: ${{ vars.VAIGO_BASE_URL }}
+          VIENNA_BASE_URL: ${{ vars.VIENNA_BASE_URL }}
         run: gradle --no-daemon clean assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: vaigo-debug-apk
+          name: vienna-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
