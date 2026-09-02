@@ -1,18 +1,18 @@
-# GitHub — VIENNA Android
+# GitHub — VANO MAPS Android
 
-Variáveis recomendadas no repositório:
+O workflow usa `https://vanomaps.online` por padrão.
+
+Variáveis aceitas:
 
 ```text
-VIENNA_BASE_URL=https://seu-backend-de-producao
-VIENNA_MOBILE_RETURN_URI=vienna://auth/callback
+VANO_BASE_URL=https://vanomaps.online
+VANO_MOBILE_RETURN_URI=vienna://auth/callback
 ```
 
-Exemplo de commit:
+O esquema `vienna://` permanece temporariamente por compatibilidade com o OAuth já existente.
+
+Para build local:
 
 ```bash
-git add .
-git commit -m "VIENNA Android rebrand"
-git push
+gradle --no-daemon clean assembleDebug
 ```
-
-Depois use **Actions → Build VIENNA APK** e baixe `vienna-debug-apk`.

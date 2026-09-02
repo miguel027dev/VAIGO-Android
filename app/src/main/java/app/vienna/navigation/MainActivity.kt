@@ -84,6 +84,7 @@ class MainActivity : Activity() {
     @Volatile private var adsInitialized = false
     @Volatile private var latestNativeAdBounds: String? = null
     @Volatile private var nativeAdFrameScheduled = false
+    @Volatile private var adsInitializationStarted = false
     private var nativeAdLoading = false
     private var nativeAdRequestedVisible = false
     private var nativeAdReadyNotified = false
@@ -103,7 +104,7 @@ class MainActivity : Activity() {
     private var lastMainFrameUrl: String? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val baseUrl = BuildConfig.VIENNA_BASE_URL.trimEnd('/')
+    private val baseUrl = BuildConfig.VANO_BASE_URL.trimEnd('/')
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,7 +119,7 @@ class MainActivity : Activity() {
         nativeAdHost = findViewById(R.id.nativeAdHost)
 
         configureSystemUi()
-        configureAds()
+        prepareAds()
         configureWebView()
 
         if (!handleAuthDeepLink(intent)) {
@@ -177,7 +178,6 @@ class MainActivity : Activity() {
         loadingLabel.setTextColor(muted)
         loadingProgress.progressTintList = ColorStateList.valueOf(primary)
         loadingProgress.progressBackgroundTintList = ColorStateList.valueOf(track)
-        brandBanner.setImageResource(if (black) R.drawable.vienna_brand_banner_dark else R.drawable.vienna_brand_banner_light)
         brandBanner.contentDescription = getString(R.string.app_name)
         root.contentDescription = null
         loadingOverlay.elevation = if (black) 0f else 1f
@@ -208,7 +208,7 @@ class MainActivity : Activity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            databaseEnabled = true
+            databaseEnabled = false
             setGeolocationEnabled(true)
             loadsImagesAutomatically = true
             blockNetworkImage = false
@@ -224,13 +224,17 @@ class MainActivity : Activity() {
             cacheMode = WebSettings.LOAD_DEFAULT
             defaultTextEncodingName = "UTF-8"
             textZoom = 100
-            userAgentString = "$userAgentString VIENNA-Android/${BuildConfig.VERSION_NAME}"
+            saveFormData = false
+            userAgentString = "$userAgentString VANO-MAPS-Android/${BuildConfig.VERSION_NAME}"
             if (Build.VERSION.SDK_INT >= 26) {
                 safeBrowsingEnabled = true
             }
         }
 
-        webView.addJavascriptInterface(ViennaNativeBridge(), "ViennaNative")
+        val nativeBridge = ViennaNativeBridge()
+        webView.addJavascriptInterface(nativeBridge, "VanoNative")
+        // Alias legado: o site antigo ainda pode chamar ViennaNative durante a migração.
+        webView.addJavascriptInterface(nativeBridge, "ViennaNative")
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -247,7 +251,7 @@ class MainActivity : Activity() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                 if (!url.isNullOrBlank()) lastMainFrameUrl = url
                 hideNativeSearchAd(keepCached = true)
-                if (!firstContentShown) showLoading("Abrindo a VIENNA…")
+                if (!firstContentShown) showLoading("Abrindo o VANO MAPS…")
                 super.onPageStarted(view, url, favicon)
             }
 
@@ -345,7 +349,7 @@ class MainActivity : Activity() {
     }
 
     private fun loadStartPage() {
-        showLoading("Abrindo a VIENNA…")
+        showLoading("Abrindo o VANO MAPS…")
         webView.loadUrl("$baseUrl$START_URL_PATH")
     }
 
@@ -409,26 +413,32 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun configureAds() {
+    private fun prepareAds() {
         nativeAdHost.visibility = View.GONE
         nativeAdHost.isClickable = false
         nativeAdHost.isFocusable = false
         nativeAdHost.translationZ = dp(18).toFloat()
-        Thread {
-            try {
-                MobileAds.initialize(applicationContext) {
-                    adsInitialized = true
-                    mainHandler.post {
-                        pendingNativeAdBounds?.let { bounds ->
-                            pendingNativeAdBounds = null
-                            handleNativeSearchAdRequest(bounds)
-                        }
-                    }
+        // O SDK de anúncios só inicializa quando o site realmente pedir um anúncio.
+        // Isso tira trabalho pesado do caminho crítico de abertura do mapa.
+    }
+
+    private fun ensureAdsInitialized(boundsJson: String) {
+        pendingNativeAdBounds = boundsJson
+        if (adsInitialized || adsInitializationStarted) return
+        adsInitializationStarted = true
+        try {
+            MobileAds.initialize(applicationContext) {
+                adsInitialized = true
+                pendingNativeAdBounds?.let { bounds ->
+                    pendingNativeAdBounds = null
+                    handleNativeSearchAdRequest(bounds)
                 }
-            } catch (_: Exception) {
-                adsInitialized = false
             }
-        }.start()
+        } catch (_: Exception) {
+            adsInitialized = false
+            adsInitializationStarted = false
+            notifySearchAdState("failed")
+        }
     }
 
     private fun nativeAdUnitId(): String = if (BuildConfig.DEBUG) {
@@ -452,7 +462,7 @@ class MainActivity : Activity() {
         nativeAdRequestedVisible = true
 
         if (!adsInitialized) {
-            pendingNativeAdBounds = boundsJson
+            ensureAdsInitialized(boundsJson)
             return
         }
 
@@ -691,7 +701,7 @@ class MainActivity : Activity() {
     private fun notifySearchAdState(state: String) {
         val safe = JSONObject.quote(state)
         webView.evaluateJavascript(
-            "window.ViennaSearchAds&&window.ViennaSearchAds.onNativeAdState($safe);",
+            "(window.VanoSearchAds||window.ViennaSearchAds)&&((window.VanoSearchAds||window.ViennaSearchAds).onNativeAdState($safe));",
             null
         )
     }
@@ -716,8 +726,8 @@ class MainActivity : Activity() {
         // o Black/White salvo pelo site com o splash nativo da próxima abertura.
         val script = """
             (function () {
-              if (window.__viennaNativePolish) return;
-              window.__viennaNativePolish = true;
+              if (window.__vanoNativePolish) return;
+              window.__vanoNativePolish = true;
 
               var viewport = document.querySelector('meta[name="viewport"]');
               if (!viewport) {
@@ -743,8 +753,9 @@ class MainActivity : Activity() {
                 var mode = value || document.documentElement.dataset.rairoTheme ||
                   localStorage.getItem('rairo.theme.mode.v60') || 'light';
                 try {
-                  if (window.ViennaNative && window.ViennaNative.setTheme) {
-                    window.ViennaNative.setTheme(mode === 'black' ? 'black' : 'light');
+                  var bridge = window.VanoNative || window.ViennaNative;
+                  if (bridge && bridge.setTheme) {
+                    bridge.setTheme(mode === 'black' ? 'black' : 'light');
                   }
                 } catch (_) {}
               }
@@ -869,7 +880,7 @@ class MainActivity : Activity() {
                     useCaches = false
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("User-Agent", "VIENNA-Android/${BuildConfig.VERSION_NAME}")
+                    setRequestProperty("User-Agent", "VANO-MAPS-Android/${BuildConfig.VERSION_NAME}")
                 }
                 val body = JSONObject()
                     .put("code", code)
@@ -975,7 +986,7 @@ class MainActivity : Activity() {
               <main>
                 <div class="mark">➤</div>
                 <h1>Sem conexão</h1>
-                <p>Confira sua internet e tente abrir a VIENNA novamente.</p>
+                <p>Confira sua internet e tente abrir o VANO MAPS novamente.</p>
                 <a href="$safeRetryUrl">Tentar novamente</a>
               </main>
             </body>

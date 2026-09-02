@@ -1,0 +1,21 @@
+VANO MAPS Android 2.1 — otimização
+
+- Base URL de produção: https://vanomaps.online
+- Display name: VANO MAPS
+- applicationId mantido: app.vienna.navigation
+- versionCode 4 / versionName 2.1.0
+- Splash convertido de PNGs grandes para vetor leve
+- AdMob inicializado sob demanda
+- Flags Google Mobile Ads OPTIMIZE_INITIALIZATION / OPTIMIZE_AD_LOADING
+- WebView com aceleração por hardware e renderer prioritário
+- DOM Storage ativo, WebSQL/database legado desativado
+- File/content access bloqueados
+- Mixed content bloqueado
+- Safe Browsing mantido
+- VanoNative adicionado com alias ViennaNative para compatibilidade
+- Release com R8 + shrinkResources
+- Network security limitada a HTTPS e vanomaps.online
+- Gradle cache/parallel/configuration cache habilitados
+- Arquivos históricos e patches antigos removidos
+
+Observação: o deep link de autenticação permanece vienna://auth/callback para não quebrar OAuth existente.

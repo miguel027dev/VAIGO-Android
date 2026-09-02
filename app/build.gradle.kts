@@ -4,21 +4,25 @@ plugins {
 }
 
 val configuredBaseUrl = (
-    System.getenv("VIENNA_BASE_URL")?.takeIf { it.isNotBlank() }
+    System.getenv("VANO_BASE_URL")?.takeIf { it.isNotBlank() }
+        ?: providers.gradleProperty("VANO_BASE_URL").orNull?.takeIf { it.isNotBlank() }
+        // Compatibilidade com builds antigos enquanto o pipeline migra.
+        ?: System.getenv("VIENNA_BASE_URL")?.takeIf { it.isNotBlank() }
         ?: providers.gradleProperty("VIENNA_BASE_URL").orNull?.takeIf { it.isNotBlank() }
-        // O host pode continuar sendo o backend atual enquanto o domínio público
-        // migra; a marca e o identificador do APK são VIENNA.
-        ?: "https://vaigo-1.onrender.com"
+        ?: "https://vanomaps.online"
 ).trimEnd('/')
 
 val configuredReturnUri = (
-    System.getenv("VIENNA_MOBILE_RETURN_URI")?.takeIf { it.isNotBlank() }
+    System.getenv("VANO_MOBILE_RETURN_URI")?.takeIf { it.isNotBlank() }
+        ?: providers.gradleProperty("VANO_MOBILE_RETURN_URI").orNull?.takeIf { it.isNotBlank() }
+        // Mantém o deep link legado para não quebrar o fluxo Google já publicado.
+        ?: System.getenv("VIENNA_MOBILE_RETURN_URI")?.takeIf { it.isNotBlank() }
         ?: providers.gradleProperty("VIENNA_MOBILE_RETURN_URI").orNull?.takeIf { it.isNotBlank() }
         ?: "vienna://auth/callback"
 )
 
 require(configuredBaseUrl.startsWith("https://")) {
-    "VIENNA_BASE_URL precisa usar HTTPS em builds de produção."
+    "VANO_BASE_URL precisa usar HTTPS em builds de produção."
 }
 
 android {
@@ -29,10 +33,10 @@ android {
         applicationId = "app.vienna.navigation"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "2.0.0"
+        versionCode = 4
+        versionName = "2.1.0"
 
-        buildConfigField("String", "VIENNA_BASE_URL", "\"$configuredBaseUrl\"")
+        buildConfigField("String", "VANO_BASE_URL", "\"$configuredBaseUrl\"")
         buildConfigField("String", "MOBILE_RETURN_URI", "\"$configuredReturnUri\"")
     }
 
@@ -42,7 +46,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

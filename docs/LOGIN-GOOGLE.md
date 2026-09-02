@@ -1,21 +1,11 @@
-# Login Google — VIENNA Android
+# Login Google — VANO MAPS Android
 
-A VIENNA usa navegador externo para OAuth, evitando login Google dentro de WebView.
+O login Google abre no navegador externo e retorna ao aplicativo por deep link com PKCE.
 
-Fluxo seguro:
+O retorno atual continua:
 
-1. o APK cria `state`, verifier PKCE e challenge;
-2. abre `/mobile/auth/google/start` no navegador;
-3. o backend redireciona para o Google usando o callback HTTPS normal;
-4. após autenticar, o backend gera um código temporário de uso único;
-5. o navegador chama `vienna://auth/callback`;
-6. o APK valida `state`, envia o verifier e troca o código em `/mobile/auth/exchange`;
-7. a sessão persistente é salva no `CookieManager`.
-
-Configuração do backend:
-
-```env
-MOBILE_AUTH_RETURN_URI=vienna://auth/callback
+```text
+vienna://auth/callback
 ```
 
-O callback no Google Cloud permanece HTTPS.
+Não troque esse esquema isoladamente: backend, OAuth e Android precisam migrar juntos.

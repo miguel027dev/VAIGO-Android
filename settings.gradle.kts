@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "VIENNA-Android"
+rootProject.name = "VANO-MAPS-Android"
 include(":app")
