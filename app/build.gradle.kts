@@ -33,8 +33,8 @@ android {
         applicationId = "app.vienna.navigation"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "2.1.0"
+        versionCode = 5
+        versionName = "2.1.1"
 
         buildConfigField("String", "VANO_BASE_URL", "\"$configuredBaseUrl\"")
         buildConfigField("String", "MOBILE_RETURN_URI", "\"$configuredReturnUri\"")
@@ -48,6 +48,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            isDebuggable = false
+            isJniDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

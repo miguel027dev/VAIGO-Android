@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/vienna_primary" />
+    <background android:drawable="@color/vano_launcher_bg" />
     <foreground android:drawable="@drawable/ic_vienna_foreground" />
-    <monochrome android:drawable="@drawable/ic_vienna_monochrome" />
+    <monochrome android:drawable="@drawable/vano_monochrome_v257" />
 </adaptive-icon>

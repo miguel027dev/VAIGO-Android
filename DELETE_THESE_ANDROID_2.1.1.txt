@@ -1,0 +1,9 @@
+Remova estes arquivos antigos do projeto antes/ao aplicar o patch:
+app/src/main/res/drawable/ic_vaigo_logo.xml
+app/src/main/res/drawable/ic_vano_mark.xml
+app/src/main/res/drawable/ic_vienna_monochrome.xml
+app/src/main/res/drawable/splash_background.xml
+app/src/main/res/drawable-nodpi/vienna_brand_banner_dark.png
+app/src/main/res/drawable-nodpi/vienna_brand_banner_light.png
+app/src/main/res/drawable-nodpi/vienna_launcher_foreground.png
+app/src/main/res/drawable-nodpi/vienna_logo_1024.png

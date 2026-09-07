@@ -1,0 +1,12 @@
+VANO MAPS Android — otimização 2.1.1
+
+- Launcher icon substituído pela logo oficial VANO MAPS.
+- Ícones gerados para mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi.
+- Adaptive icon atualizado para Android 8+ e themed icon preservado no Android 13+.
+- Splash/loading nativo usa a identidade VANO oficial.
+- Removidos assets legados Vienna/VAIGO sem referência no app.
+- versionCode: 5
+- versionName: 2.1.1
+- R8 full mode + shrinkResources mantidos/otimizados para release.
+- Configurações de debug explicitamente desativadas no release.
+- applicationId, deep link e preferências legadas foram preservados para compatibilidade com usuários já instalados.
