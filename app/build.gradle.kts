@@ -1,76 +1,41 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-}
-
-val configuredBaseUrl = (
-    System.getenv("VANO_BASE_URL")?.takeIf { it.isNotBlank() }
-        ?: providers.gradleProperty("VANO_BASE_URL").orNull?.takeIf { it.isNotBlank() }
-        // Compatibilidade com builds antigos enquanto o pipeline migra.
-        ?: System.getenv("VIENNA_BASE_URL")?.takeIf { it.isNotBlank() }
-        ?: providers.gradleProperty("VIENNA_BASE_URL").orNull?.takeIf { it.isNotBlank() }
-        ?: "https://vanomaps.online"
-).trimEnd('/')
-
-val configuredReturnUri = (
-    System.getenv("VANO_MOBILE_RETURN_URI")?.takeIf { it.isNotBlank() }
-        ?: providers.gradleProperty("VANO_MOBILE_RETURN_URI").orNull?.takeIf { it.isNotBlank() }
-        // Mantém o deep link legado para não quebrar o fluxo Google já publicado.
-        ?: System.getenv("VIENNA_MOBILE_RETURN_URI")?.takeIf { it.isNotBlank() }
-        ?: providers.gradleProperty("VIENNA_MOBILE_RETURN_URI").orNull?.takeIf { it.isNotBlank() }
-        ?: "vienna://auth/callback"
-)
-
-require(configuredBaseUrl.startsWith("https://")) {
-    "VANO_BASE_URL precisa usar HTTPS em builds de produção."
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
-    namespace = "app.vienna.navigation"
-    compileSdk = 35
+    namespace = "com.vano.nativeapp"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "app.vienna.navigation"
+        applicationId = "com.vano.nativeapp"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 5
-        versionName = "2.1.1"
-
-        buildConfigField("String", "VANO_BASE_URL", "\"$configuredBaseUrl\"")
-        buildConfigField("String", "MOBILE_RETURN_URI", "\"$configuredReturnUri\"")
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.1-test"
+        buildConfigField("String", "VANO_BASE_URL", "\"https://vaigo-1.onrender.com\"")
     }
 
-    buildFeatures {
-        buildConfig = true
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            isDebuggable = false
-            isJniDebuggable = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
+    buildFeatures { compose = true; buildConfig = true }
+    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
-
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget("17")
-    }
-}
-
 
 dependencies {
-    implementation("com.google.android.gms:play-services-ads:25.4.0")
+    val composeBom = platform("androidx.compose:compose-bom:2026.08.00")
+    implementation(composeBom)
+    androidTestImplementation(composeBom)
+
+    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.activity:activity-compose:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // Map rendered natively on-device. OpenGL build is the widest-compatibility test choice.
+    implementation("org.maplibre.gl:android-sdk-opengl:13.4.1")
 }

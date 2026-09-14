@@ -1,27 +1,31 @@
-# VANO MAPS Android 2.1
+# VANO Native Test
 
-Android WebView otimizado para `https://vanomaps.online`.
+Protótipo Android nativo para testar a arquitetura **UI/mapa/câmera/GPS no celular + inteligência/rotas no servidor VANO**.
 
-## Principais mudanças
-- domínio de produção VANO MAPS por padrão;
-- mantém `applicationId = app.vienna.navigation` para preservar compatibilidade com a publicação existente;
-- splash nativo leve em vetor, sem banners PNG pesados;
-- AdMob inicializado sob demanda, fora do caminho crítico de startup;
-- WebView com aceleração por hardware, cache HTTP padrão, DOM Storage e GPS;
-- R8 + shrinkResources no release;
-- ponte JavaScript nova `VanoNative`, mantendo `ViennaNative` como alias temporário;
-- modo Black sincronizado sem darkening automático do WebView;
-- rede HTTPS restrita ao domínio de produção;
-- workflow de CI apontando para `vanomaps.online`.
+## O que já existe
+- Kotlin + Jetpack Compose.
+- Mapa nativo MapLibre (OpenGL) com OpenFreeMap Liberty.
+- GPS nativo sem Google Play Services.
+- Puck VANO local.
+- Busca usando `GET /api/geocode` do VANO.
+- Rotas usando `GET /api/route` com `mobile_compact=1`.
+- Perfis Carro e Moto.
+- Modos Rápida / Spark / Segura.
+- Linha de rota sempre `#FF9500`.
+- Câmera nativa adaptativa, com perfil de moto mais reativo.
+- Botão de recalibrar.
+- Interface local; o servidor entrega dados e rotas.
 
-## Configuração
-`VANO_BASE_URL=https://vanomaps.online`
+Servidor configurado em `app/build.gradle.kts`:
+`https://vaigo-1.onrender.com`
 
-O retorno Google permanece `vienna://auth/callback` por compatibilidade. Só altere quando o backend e o OAuth estiverem migrados juntos.
+## Abrir e gerar APK
+1. Abra esta pasta no Android Studio.
+2. Aguarde o Gradle Sync baixar Compose + MapLibre.
+3. Use um celular Android com depuração USB ou um emulador.
+4. `Build > Build APK(s)`.
 
-## Build
-```bash
-gradle --no-daemon clean assembleDebug
-```
+O APK de debug fica em `app/build/outputs/apk/debug/app-debug.apk`.
 
-Para release, configure sua chave de assinatura antes de publicar na Play Store.
+## Observação
+Este é um APK/projeto **de teste**, não substitui ainda todos os recursos do web app. O objetivo é validar a sensação de mapa, HUD, pesquisa, GPS e câmera nativos antes da migração completa.
