@@ -18,6 +18,12 @@ android {
     }
 
     buildFeatures { compose = true; buildConfig = true }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
@@ -34,8 +40,15 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
+    // MainActivity uses Icons.Default.TwoWheeler, DirectionsCar, Navigation, etc.
+    implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // Map rendered natively on-device. OpenGL build is the widest-compatibility test choice.
     implementation("org.maplibre.gl:android-sdk-opengl:13.4.1")
+}
+
+
+kotlin {
+    jvmToolchain(17)
 }
