@@ -50,7 +50,7 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
-import org.maplibre.android.maps.MapboxMap
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory.*
@@ -240,19 +240,22 @@ private fun NativeMap(modifier: Modifier, onReady:(MapController)->Unit, onGestu
     val context = LocalContext.current
     AndroidView(modifier = modifier, factory = { ctx ->
         MapView(ctx).apply {
+            onCreate(null)
             getMapAsync { map ->
                 map.uiSettings.apply { isCompassEnabled = false; isLogoEnabled = false; isAttributionEnabled = true; isRotateGesturesEnabled = true; isTiltGesturesEnabled = true }
+                map.addOnCameraMoveStartedListener { reason ->
+                    if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) onGesture()
+                }
                 map.setStyle(Style.Builder().fromUri("https://tiles.openfreemap.org/styles/liberty")) { style ->
                     onReady(MapController(ctx, this, map, style))
                 }
-                addOnCameraMoveStartedListener { if (it == MapboxMap.OnCameraMoveStartedListener.REASON_API_GESTURE) onGesture() }
             }
             onStart(); onResume()
         }
     }, onRelease = { it.onPause(); it.onStop(); it.onDestroy() })
 }
 
-private class MapController(private val context: Context, private val view: MapView, private val map: MapboxMap, private var style: Style) {
+private class MapController(private val context: Context, private val view: MapView, private val map: MapLibreMap, private var style: Style) {
     private var marker: Marker? = null
     private var bearing = 0.0
     private var lastLocation: Location? = null
