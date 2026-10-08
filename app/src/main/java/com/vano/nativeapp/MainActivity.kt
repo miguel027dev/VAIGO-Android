@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -91,13 +93,33 @@ private fun VanoApp() {
     var mapHandle by remember { mutableStateOf<MapController?>(null) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
 
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        startLocation(context) { location = it; mapHandle?.onLocation(it, vehicle, navigating) }
+    var locationAllowed by remember { mutableStateOf(
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    ) }
+    val locationCallback by rememberUpdatedState<(Location) -> Unit>({
+        location = it; mapHandle?.onLocation(it, vehicle, navigating)
+    })
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        locationAllowed = grants.values.any { it }
+        if (!locationAllowed) message = "Permita a localização nas configurações para calcular a rota a partir de você."
+    }
+    DisposableEffect(context, locationAllowed) {
+        val owner = context as? ComponentActivity
+        var stopUpdates: (() -> Unit)? = null
+        fun startUpdates() {
+            if (locationAllowed && stopUpdates == null) stopUpdates = startLocation(context) { locationCallback(it) }
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) startUpdates()
+            if (event == Lifecycle.Event.ON_PAUSE) { stopUpdates?.invoke(); stopUpdates = null }
+        }
+        owner?.lifecycle?.addObserver(observer)
+        if (owner?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED) == true) startUpdates()
+        onDispose { owner?.lifecycle?.removeObserver(observer); stopUpdates?.invoke() }
     }
     LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            startLocation(context) { location = it; mapHandle?.onLocation(it, vehicle, navigating) }
-        } else permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        if (!locationAllowed) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
         runCatching { api.bootstrap() }.onFailure { message = "Servidor VANO indisponível: ${it.message}" }
     }
     LaunchedEffect(query, location) {
@@ -118,10 +140,10 @@ private fun VanoApp() {
         Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
             SearchBar(
                 query = query,
-                onQuery = { query = it; destination = null },
+                onQuery = { query = it; destination = null; routes = emptyList(); selected = null; navigating = false; mapHandle?.clearRoute() },
                 onClear = { query = ""; destination = null; routes = emptyList(); selected = null; mapHandle?.clearRoute() },
                 vehicle = vehicle,
-                onVehicle = { vehicle = it; location?.let { l -> mapHandle?.onLocation(l, vehicle, navigating) } },
+                onVehicle = { vehicle = it; routes = emptyList(); selected = null; navigating = false; mapHandle?.clearRoute(); location?.let { l -> mapHandle?.onLocation(l, vehicle, navigating) } },
             )
             AnimatedVisibility(search.isNotEmpty() && destination == null) {
                 Card(Modifier.fillMaxWidth().padding(top = 8.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
@@ -145,12 +167,16 @@ private fun VanoApp() {
             Spacer(Modifier.weight(1f))
 
             if (destination != null && !navigating) {
-                RouteSheet(destination!!, mode, { mode = it }, routes, selected, onSelect = { selected = it; mapHandle?.showRoute(it) }, busy = busy, onCalculate = {
-                    val l = location ?: return@RouteSheet
+                RouteSheet(destination!!, mode, { mode = it; routes = emptyList(); selected = null; mapHandle?.clearRoute() }, routes, selected, onSelect = { selected = it; mapHandle?.showRoute(it) }, busy = busy, onCalculate = {
+                    val l = location
+                    if (l == null) { message = "Aguardando GPS. Ative a localização e tente novamente."; if (!locationAllowed) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)); return@RouteSheet }
+                    val requestedDestination = destination!!
+                    val requestedVehicle = vehicle
+                    val requestedMode = mode
                     scope.launch {
                         busy = true
-                        runCatching { api.route(LatLngPoint(l.latitude, l.longitude), LatLngPoint(destination!!.lat, destination!!.lon), vehicle, mode, l.bearing.toDouble(), l.speed.toDouble()) }
-                            .onSuccess { r -> routes = r; selected = r.firstOrNull(); selected?.let { mapHandle?.showRoute(it) } }
+                        runCatching { api.route(LatLngPoint(l.latitude, l.longitude), LatLngPoint(requestedDestination.lat, requestedDestination.lon), requestedVehicle, requestedMode, l.bearing.toDouble(), l.speed.toDouble()) }
+                            .onSuccess { r -> if (destination != requestedDestination || vehicle != requestedVehicle || mode != requestedMode) return@onSuccess; routes = r; selected = r.firstOrNull(); selected?.let { mapHandle?.showRoute(it) } }
                             .onFailure { message = it.message }
                         busy = false
                     }
@@ -303,10 +329,12 @@ private fun userPuckBitmap(context: Context): Bitmap {
 }
 
 @Suppress("MissingPermission")
-private fun startLocation(context: Context, onLocation:(Location)->Unit) {
+private fun startLocation(context: Context, onLocation:(Location)->Unit): () -> Unit {
     val lm=context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     val listener=object: LocationListener { override fun onLocationChanged(location: Location) = onLocation(location) }
     runCatching { lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.let(onLocation) }
     runCatching { lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500L, 1f, listener) }
     runCatching { lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1800L, 4f, listener) }
+    return { runCatching { lm.removeUpdates(listener) }; Unit }
 }
+

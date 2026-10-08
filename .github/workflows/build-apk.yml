@@ -1,44 +1,24 @@
-name: Build VIENNA APK
-
+name: VANO Android compile
 on:
   push:
-    branches: [ main ]
+    branches: [main, "refactor/**"]
+  pull_request:
   workflow_dispatch:
-
+permissions:
+  contents: read
 jobs:
-  build:
+  compile:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Java 17
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-
-      - name: Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install Android 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+          java-version: "17"
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
-
-      - name: Build debug APK
-        env:
-          VIENNA_BASE_URL: https://vaigo-1.onrender.com
-        run: gradle --no-daemon clean assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: vienna-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          gradle-version: "8.13"
+      - run: gradle --no-daemon assembleDebug
